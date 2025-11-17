@@ -30,8 +30,8 @@ type Comment = {
 type TransactionAggRow = {
   amount: number | null;
   user_tag: "papa" | "mama" | "shared" | null;
-  statement: { year: number; month: number } | null;
-  category: { name: string | null } | null;
+  statement: { year: number; month: number }[] | null;
+  category: { name: string | null }[] | null;
 };
 
 async function getCurrentHouseholdId() {
@@ -91,7 +91,7 @@ export default function AnalyticsPage() {
       >();
 
       rows.forEach((row) => {
-        const stmt = row.statement;
+        const stmt = row.statement?.[0];
         if (!stmt) return;
         const ym = `${stmt.year}-${String(stmt.month).padStart(2, "0")}`; // 明細の支払月
         const amt = Number(row.amount || 0);
@@ -149,12 +149,12 @@ export default function AnalyticsPage() {
     >();
 
     rawRows.forEach((row) => {
-      const stmt = row.statement;
+      const stmt = row.statement?.[0];
       if (!stmt) return;
       const ym = `${stmt.year}-${String(stmt.month).padStart(2, "0")}`;
       if (ym !== selectedYm) return;
 
-      const categoryName = row.category?.name || "未分類";
+      const categoryName = row.category?.[0]?.name || "未分類";
       const key = categoryName;
       const amt = Number(row.amount || 0);
 
