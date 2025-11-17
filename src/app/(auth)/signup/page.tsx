@@ -9,6 +9,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 type Role = "papa" | "mama";
 
 export default function SignupPage() {
+  const SHARED_HOUSEHOLD_ID = "11111111-1111-1111-1111-111111111111";
+
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -54,44 +56,11 @@ export default function SignupPage() {
       return;
     }
 
-    // Shared household: 全ユーザーで共通の世帯を利用する
-    const SHARED_NAME = "Shared Household";
-    const { data: existingHousehold, error: householdSelectError } =
-      await supabase
-        .from("households")
-        .select("id")
-        .eq("name", SHARED_NAME)
-        .maybeSingle();
-
-    if (householdSelectError && householdSelectError.code !== "PGRST116") {
-      setLoading(false);
-      setError(householdSelectError.message);
-      return;
-    }
-
-    let householdId = existingHousehold?.id as string | undefined;
-
-    if (!householdId) {
-      const { data: inserted, error: householdInsertError } = await supabase
-        .from("households")
-        .insert({ name: SHARED_NAME })
-        .select("id")
-        .single();
-
-      if (householdInsertError || !inserted) {
-        setLoading(false);
-        setError(householdInsertError?.message ?? "世帯の作成に失敗しました。");
-        return;
-      }
-
-      householdId = inserted.id;
-    }
-
     const { error: membershipError } = await supabase
       .from("users_households")
       .insert({
         user_id: user.id,
-        household_id: householdId,
+        household_id: SHARED_HOUSEHOLD_ID,
         role: "member",
       });
 
