@@ -250,7 +250,7 @@ export default function UploadPage() {
                 max={12}
                 value={month ?? ""}
                 onChange={(e) =>
-                  setMonth(e.getTarget?.value ? Number(e.target.value) : null)
+                  setMonth(e.target.value ? Number(e.target.value) : null)
                 }
                 className="w-full rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
