@@ -27,6 +27,12 @@ type Comment = {
   created_at: string;
 };
 
+type TransactionAggRow = {
+  posting_date: string | null;
+  amount: number | null;
+  user_tag: "papa" | "mama" | "shared" | null;
+};
+
 async function getCurrentHouseholdId() {
   const {
     data: { user },
@@ -77,8 +83,8 @@ export default function AnalyticsPage() {
         { total: number; papa: number; mama: number; shared: number }
       >();
 
-      (data ?? []).forEach((row: any) => {
-        const dateStr = row.posting_date as string;
+      (data ?? []).forEach((row: TransactionAggRow) => {
+        const dateStr = row.posting_date ?? "";
         if (!dateStr) return;
         const ym = dateStr.slice(0, 7); // YYYY-MM
         const amt = Number(row.amount || 0);
@@ -180,7 +186,7 @@ export default function AnalyticsPage() {
                 <XAxis dataKey="ym" fontSize={11} />
                 <YAxis fontSize={11} />
                 <RechartsTooltip
-                  formatter={(value: any) =>
+                  formatter={(value: number | string) =>
                     `${Number(value).toLocaleString("ja-JP")}円`
                   }
                 />
@@ -214,7 +220,7 @@ export default function AnalyticsPage() {
                 <XAxis dataKey="ym" fontSize={11} />
                 <YAxis fontSize={11} />
                 <RechartsTooltip
-                  formatter={(value: any) =>
+                  formatter={(value: number | string) =>
                     `${Number(value).toLocaleString("ja-JP")}円`
                   }
                 />

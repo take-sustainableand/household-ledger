@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -40,7 +39,6 @@ async function getCurrentHouseholdId() {
 }
 
 export default function TransactionsPage() {
-  const [householdId, setHouseholdId] = useState<string | null>(null);
   const [statements, setStatements] = useState<Statement[]>([]);
   const [selectedStatementId, setSelectedStatementId] = useState<string | "">(
     ""
@@ -59,7 +57,6 @@ export default function TransactionsPage() {
         setError("世帯情報が取得できませんでした。ログイン状況を確認してください。");
         return;
       }
-      setHouseholdId(hid);
       const { data, error: stmtError } = await supabase
         .from("statements")
         .select("id, year, month, source")
