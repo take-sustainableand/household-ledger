@@ -18,13 +18,61 @@ async function getCurrentUserAndHousehold() {
   } = await supabase.auth.getUser();
   if (!user) return { user: null, householdId: null };
 
+  const SHARED_NAME = "Shared Household";
+
   const { data: membership } = await supabase
     .from("users_households")
     .select("household_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
-  return { user, householdId: membership?.household_id ?? null };
+  if (membership?.household_id) {
+    return { user, householdId: membership.household_id as string };
+  }
+
+  // Fallback: 世帯情報がなければ共有世帯を自動作成する
+  const { data: household, error: householdError } = await supabase
+    .from("households")
+    .select("id")
+    .eq("name", SHARED_NAME)
+    .maybeSingle();
+
+  if (householdError && householdError.code !== "PGRST116") {
+    console.error("Failed to select household", householdError);
+    return { user, householdId: null };
+  }
+
+  let householdId = household?.id as string | undefined;
+
+  if (!householdId) {
+    const { data: inserted, error: insertError } = await supabase
+      .from("households")
+      .insert({ name: SHARED_NAME })
+      .select("id")
+      .single();
+
+    if (insertError || !inserted) {
+      console.error("Failed to create household", insertError);
+      return { user, householdId: null };
+    }
+
+    householdId = inserted.id;
+  }
+
+  const { error: membershipError } = await supabase
+    .from("users_households")
+    .insert({
+      user_id: user.id,
+      household_id: householdId,
+      role: "member",
+    });
+
+  if (membershipError) {
+    console.error("Failed to create users_households", membershipError);
+    return { user, householdId: null };
+  }
+
+  return { user, householdId };
 }
 
 function parseCsv(text: string): ParsedRow[] {

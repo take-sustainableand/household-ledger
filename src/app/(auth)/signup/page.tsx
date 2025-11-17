@@ -14,7 +14,6 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState<Role>("papa");
-  const [householdName, setHouseholdName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,12 +54,13 @@ export default function SignupPage() {
       return;
     }
 
-    // Household: join existing by name or create new
+    // Shared household: 全ユーザーで共通の世帯を利用する
+    const SHARED_NAME = "Shared Household";
     const { data: existingHousehold, error: householdSelectError } =
       await supabase
         .from("households")
         .select("id")
-        .eq("name", householdName)
+        .eq("name", SHARED_NAME)
         .maybeSingle();
 
     if (householdSelectError && householdSelectError.code !== "PGRST116") {
@@ -74,7 +74,7 @@ export default function SignupPage() {
     if (!householdId) {
       const { data: inserted, error: householdInsertError } = await supabase
         .from("households")
-        .insert({ name: householdName })
+        .insert({ name: SHARED_NAME })
         .select("id")
         .single();
 
@@ -171,21 +171,7 @@ export default function SignupPage() {
             </label>
           </div>
         </div>
-        <div className="space-y-1 text-sm">
-          <label className="block text-xs font-medium text-muted-foreground">
-            世帯名（例: Tanaka Family）
-          </label>
-          <input
-            type="text"
-            required
-            value={householdName}
-            onChange={(e) => setHouseholdName(e.target.value)}
-            className="w-full rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-          <p className="text-xs text-muted-foreground">
-            Papa と Mama が同じ世帯名を入力すると同じ家計データを共有できます。
-          </p>
-        </div>
+        {/* 世帯名の入力は不要。全ユーザーで共有の世帯に自動参加させる */}
         {error && (
           <p className="text-xs text-red-500 whitespace-pre-wrap">{error}</p>
         )}
