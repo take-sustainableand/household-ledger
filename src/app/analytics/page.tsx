@@ -28,9 +28,10 @@ type Comment = {
 };
 
 type TransactionAggRow = {
-  posting_date: string | null;
   amount: number | null;
   user_tag: "papa" | "mama" | "shared" | null;
+  statement: { year: number; month: number } | null;
+  category: { name: string | null } | null;
 };
 
 async function getCurrentHouseholdId() {
@@ -51,6 +52,7 @@ export default function AnalyticsPage() {
   const [monthlyData, setMonthlyData] = useState<
     { ym: string; total: number; papa: number; mama: number; shared: number }[]
   >([]);
+  const [rawRows, setRawRows] = useState<TransactionAggRow[]>([]);
   const [selectedYm, setSelectedYm] = useState<string | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
@@ -69,7 +71,9 @@ export default function AnalyticsPage() {
 
       const { data, error: aggError } = await supabase
         .from("transactions")
-        .select("posting_date, amount, user_tag")
+        .select(
+          "amount, user_tag, statement:statements(year, month), category:categories(name)"
+        )
         .eq("household_id", hid);
 
       setLoading(false);
@@ -78,15 +82,18 @@ export default function AnalyticsPage() {
         return;
       }
 
+      const rows = (data ?? []) as TransactionAggRow[];
+      setRawRows(rows);
+
       const map = new Map<
         string,
         { total: number; papa: number; mama: number; shared: number }
       >();
 
-      (data ?? []).forEach((row: TransactionAggRow) => {
-        const dateStr = row.posting_date ?? "";
-        if (!dateStr) return;
-        const ym = dateStr.slice(0, 7); // YYYY-MM
+      rows.forEach((row) => {
+        const stmt = row.statement;
+        if (!stmt) return;
+        const ym = `${stmt.year}-${String(stmt.month).padStart(2, "0")}`; // 明細の支払月
         const amt = Number(row.amount || 0);
         if (!map.has(ym)) {
           map.set(ym, { total: 0, papa: 0, mama: 0, shared: 0 });
@@ -133,6 +140,36 @@ export default function AnalyticsPage() {
     () => monthlyData.find((m) => m.ym === selectedYm) ?? null,
     [monthlyData, selectedYm]
   );
+
+  const categoryData = useMemo(() => {
+    if (!selectedYm) return [];
+    const map = new Map<
+      string,
+      { category: string; total: number; papa: number; mama: number; shared: number }
+    >();
+
+    rawRows.forEach((row) => {
+      const stmt = row.statement;
+      if (!stmt) return;
+      const ym = `${stmt.year}-${String(stmt.month).padStart(2, "0")}`;
+      if (ym !== selectedYm) return;
+
+      const categoryName = row.category?.name || "未分類";
+      const key = categoryName;
+      const amt = Number(row.amount || 0);
+
+      if (!map.has(key)) {
+        map.set(key, { category: categoryName, total: 0, papa: 0, mama: 0, shared: 0 });
+      }
+      const current = map.get(key)!;
+      current.total += amt;
+      if (row.user_tag === "papa") current.papa += amt;
+      else if (row.user_tag === "mama") current.mama += amt;
+      else current.shared += amt;
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+  }, [rawRows, selectedYm]);
 
   const handleAddComment = async () => {
     if (!householdId || !selectedYm || !newComment.trim()) return;
@@ -207,7 +244,7 @@ export default function AnalyticsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">タグ別積み上げ</CardTitle>
+          <CardTitle className="text-sm">タグ別積み上げ（明細月別）</CardTitle>
         </CardHeader>
         <CardContent className="h-64">
           {monthlyData.length === 0 ? (
@@ -231,6 +268,40 @@ export default function AnalyticsPage() {
                   dataKey="shared"
                   name="共通"
                   stackId="a"
+                  fill="#9ca3af"
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">費目別積み上げ（選択明細月）</CardTitle>
+        </CardHeader>
+        <CardContent className="h-64">
+          {!selectedYm || categoryData.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              表示できるデータがありません。
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={categoryData} stackOffset="none">
+                <XAxis dataKey="category" fontSize={11} />
+                <YAxis fontSize={11} />
+                <RechartsTooltip
+                  formatter={(value: number | string) =>
+                    `${Number(value).toLocaleString("ja-JP")}円`
+                  }
+                />
+                <Legend />
+                <Bar dataKey="papa" name="Papa" stackId="cat" fill="#0f172a" />
+                <Bar dataKey="mama" name="Mama" stackId="cat" fill="#4b5563" />
+                <Bar
+                  dataKey="shared"
+                  name="共通"
+                  stackId="cat"
                   fill="#9ca3af"
                 />
               </BarChart>
