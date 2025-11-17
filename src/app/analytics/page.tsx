@@ -33,7 +33,7 @@ type TransactionAggRow = {
   statement_id: string;
   amount: number | null;
   user_tag: "papa" | "mama" | "shared" | null;
-  category_id: string | null;
+  raw_merchant: string | null;
 };
 
 async function getCurrentHouseholdId() {
@@ -80,7 +80,7 @@ export default function AnalyticsPage() {
             .eq("household_id", hid),
           supabase
             .from("transactions")
-            .select("statement_id, amount, user_tag, category_id")
+            .select("statement_id, amount, user_tag, raw_merchant")
             .eq("household_id", hid),
         ]);
 
@@ -176,7 +176,7 @@ export default function AnalyticsPage() {
       const ym = `${stmt.year}-${String(stmt.month).padStart(2, "0")}`;
       if (ym !== selectedYm) return;
 
-      const categoryName = row.category_id ? "カテゴリー" : "未分類";
+      const categoryName = row.raw_merchant || "不明なご利用先";
       const key = categoryName;
       const amt = Number(row.amount || 0);
 
