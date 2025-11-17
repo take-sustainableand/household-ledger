@@ -27,11 +27,13 @@ type Comment = {
   created_at: string;
 };
 
+type StatementRow = { id: string; year: number; month: number };
+
 type TransactionAggRow = {
+  statement_id: string;
   amount: number | null;
   user_tag: "papa" | "mama" | "shared" | null;
-  statement: { year: number; month: number }[] | null;
-  category: { name: string | null }[] | null;
+  category_id: string | null;
 };
 
 async function getCurrentHouseholdId() {
@@ -52,6 +54,7 @@ export default function AnalyticsPage() {
   const [monthlyData, setMonthlyData] = useState<
     { ym: string; total: number; papa: number; mama: number; shared: number }[]
   >([]);
+  const [statements, setStatements] = useState<StatementRow[]>([]);
   const [rawRows, setRawRows] = useState<TransactionAggRow[]>([]);
   const [selectedYm, setSelectedYm] = useState<string | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -69,21 +72,36 @@ export default function AnalyticsPage() {
       setHouseholdId(hid);
       setLoading(true);
 
-      const { data, error: aggError } = await supabase
-        .from("transactions")
-        .select(
-          "amount, user_tag, statement:statements(year, month), category:categories(name)"
-        )
-        .eq("household_id", hid);
+      const [{ data: stmtData, error: stmtError }, { data, error: aggError }] =
+        await Promise.all([
+          supabase
+            .from("statements")
+            .select("id, year, month")
+            .eq("household_id", hid),
+          supabase
+            .from("transactions")
+            .select("statement_id, amount, user_tag, category_id")
+            .eq("household_id", hid),
+        ]);
 
       setLoading(false);
+      if (stmtError) {
+        setError(stmtError.message);
+        return;
+      }
       if (aggError) {
         setError(aggError.message);
         return;
       }
 
+      const stmtRows = (stmtData ?? []) as StatementRow[];
+      setStatements(stmtRows);
+
       const rows = (data ?? []) as TransactionAggRow[];
       setRawRows(rows);
+
+      const stmtMap = new Map<string, { year: number; month: number }>();
+      stmtRows.forEach((s) => stmtMap.set(s.id, { year: s.year, month: s.month }));
 
       const map = new Map<
         string,
@@ -91,7 +109,7 @@ export default function AnalyticsPage() {
       >();
 
       rows.forEach((row) => {
-        const stmt = row.statement?.[0];
+        const stmt = stmtMap.get(row.statement_id);
         if (!stmt) return;
         const ym = `${stmt.year}-${String(stmt.month).padStart(2, "0")}`; // 明細の支払月
         const amt = Number(row.amount || 0);
@@ -143,18 +161,22 @@ export default function AnalyticsPage() {
 
   const categoryData = useMemo(() => {
     if (!selectedYm) return [];
+
+    const stmtMap = new Map<string, { year: number; month: number }>();
+    statements.forEach((s) => stmtMap.set(s.id, { year: s.year, month: s.month }));
+
     const map = new Map<
       string,
       { category: string; total: number; papa: number; mama: number; shared: number }
     >();
 
     rawRows.forEach((row) => {
-      const stmt = row.statement?.[0];
+      const stmt = stmtMap.get(row.statement_id);
       if (!stmt) return;
       const ym = `${stmt.year}-${String(stmt.month).padStart(2, "0")}`;
       if (ym !== selectedYm) return;
 
-      const categoryName = row.category?.[0]?.name || "未分類";
+      const categoryName = row.category_id ? "カテゴリー" : "未分類";
       const key = categoryName;
       const amt = Number(row.amount || 0);
 
@@ -169,7 +191,7 @@ export default function AnalyticsPage() {
     });
 
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
-  }, [rawRows, selectedYm]);
+  }, [rawRows, selectedYm, statements]);
 
   const handleAddComment = async () => {
     if (!householdId || !selectedYm || !newComment.trim()) return;
